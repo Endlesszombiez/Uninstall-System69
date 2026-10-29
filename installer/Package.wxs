@@ -1,0 +1,18 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="System69 Uninstaller" Manufacturer="System69" Version="0.1.0" UpgradeCode="A52BF204-88A1-49A8-97D5-A92592BE9E7D" Scope="perUser" Compressed="yes">
+    <SetProperty Id="ARPINSTALLLOCATION" Value="[INSTALLFOLDER]" After="CostFinalize" Sequence="execute" />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of System69 is already installed." />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+    <Icon Id="System69Icon" SourceFile="$(var.RepoRoot)\src\System69.App\Assets\System69.ico" />
+    <Property Id="ARPPRODUCTICON" Value="System69Icon" />
+    <StandardDirectory Id="LocalAppDataFolder"><Directory Id="ProgramsFolder" Name="Programs"><Directory Id="INSTALLFOLDER" Name="System69" /></Directory></StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder"><Directory Id="MenuFolder" Name="System69">
+      <Component Id="StartMenu" Guid="*">
+        <Shortcut Id="AppShortcut" Name="System69 Uninstaller" Target="[INSTALLFOLDER]System69.exe" WorkingDirectory="INSTALLFOLDER" Icon="System69Icon" />
+        <RemoveFolder Id="RemoveMenuFolder" On="uninstall" />
+        <RegistryValue Root="HKCU" Key="Software\System69" Name="Installed" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </Directory></StandardDirectory>
+    <Feature Id="MainFeature" Title="System69" Level="1"><ComponentGroupRef Id="PublishedFiles" /><ComponentRef Id="StartMenu" /></Feature>
+  </Package>
+</Wix>
