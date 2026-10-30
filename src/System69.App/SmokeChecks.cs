@@ -26,11 +26,38 @@ public partial class MainWindow
         SaveWindow(this, "artifacts/installed-apps.png");
         var first = apps.First(x => !x.App.Protected);
         var second = apps.Last(x => !x.App.Protected && x != first);
+        first.Selected = true;
+        HideSelected_Click(this, new RoutedEventArgs());
+        Assert(first.Hidden && !view.Cast<AppRow>().Contains(first), "Hidden app remained visible.");
+        var savedPreferences = new System69.Core.HiddenApplications(hiddenPreferencesPath);
+        savedPreferences.Load();
+        Assert(savedPreferences.Contains(first.App), "Hidden app preference did not persist.");
+        ShowHidden.IsChecked = true;
+        Assert(view.Cast<AppRow>().Contains(first), "Show hidden apps did not reveal hidden entry.");
+        first.Selected = true;
+        UnhideSelected_Click(this, new RoutedEventArgs());
+        Assert(!first.Hidden, "Unhide did not restore entry.");
+        ShowHidden.IsChecked = false;
+        first.Selected = true;
+        AppsGrid.SelectedItem = first;
+        SaveWindow(this, "artifacts/selection-highlight.png");
+        var selectedRow = AppsGrid.ItemContainerGenerator.ContainerFromItem(first) as System.Windows.Controls.DataGridRow;
+        Assert(selectedRow is not null && ((SolidColorBrush)selectedRow.Background).Color == ((SolidColorBrush)FindResource("SelectionTint")).Color, "Selection did not use the subtle highlight.");
         second.Selected = true;
         first.Selected = true;
         Assert(AddButton.IsEnabled, "Checkbox selection did not enable add.");
         Add_Click(this, new RoutedEventArgs());
         Assert(queue.Count == 2 && QueuePanel.Visibility == Visibility.Visible, "Adding to queue failed.");
+        ShowQueue(false);
+        HideAppCommand.Execute(first, AppsGrid);
+        Assert(first.Hidden && queue.Count == 1, "Hide context command did not remove pending entry.");
+        ShowHidden.IsChecked = true;
+        UnhideAppCommand.Execute(first, AppsGrid);
+        Assert(!first.Hidden, "Unhide context command did not restore entry.");
+        ShowHidden.IsChecked = false;
+        first.Selected = true;
+        Add_Click(this, new RoutedEventArgs());
+        Assert(queue.Count == 2, "Unhidden app could not be re-added.");
         SaveWindow(this, "artifacts/uninstall-queue.png");
         var review = new ReviewWindow([new(first.Name, first.Source, first.Mode, "Off")], false) { Owner = this };
         review.Show();
@@ -38,7 +65,7 @@ public partial class MainWindow
         review.Close();
         Clear_Click(this, new RoutedEventArgs());
         Assert(queue.Count == 0 && !StartButton.IsEnabled, "Clearing the queue failed.");
-        File.WriteAllText("artifacts/smoke-result.txt", $"PASS: read-only scan returned {apps.Count} entries. Search, source filters, multi-select binding, queue addition, review window, clear queue, and WPF rendering passed. No uninstall commands executed.\r\n");
+        File.WriteAllText("artifacts/smoke-result.txt", $"PASS: read-only scan returned {apps.Count} entries. Search, source filters, multi-select binding, subtle selection highlight, persistent hide/unhide, queue addition, review window, clear queue, and WPF rendering passed. No uninstall commands executed.\r\n");
     }
 
     private static void SaveWindow(Window window, string path)

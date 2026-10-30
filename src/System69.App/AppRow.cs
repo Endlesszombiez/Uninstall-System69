@@ -14,6 +14,9 @@ public class AppRow(InstalledApp app) : INotifyPropertyChanged
     public string Size => App.SizeLabel;
     public string Initial => Name.Length > 0 ? Name[..1].ToUpperInvariant() : "?";
     public string Mode => App.Protected ? "Protected" : App.SupportsQuiet ? "Silent requested" : "May show a window";
+    private bool hidden;
+    public bool Hidden { get => hidden; set { if (hidden == value) return; hidden = value; Changed(); Changed(nameof(VisibilityLabel)); } }
+    public string VisibilityLabel => Hidden ? "Hidden" : "";
     private bool selected;
     public bool Selected { get => selected; set { if (selected == value) return; selected = value; Changed(); } }
     public event PropertyChangedEventHandler? PropertyChanged;

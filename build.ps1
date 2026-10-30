@@ -60,11 +60,11 @@ try {
         $writer.WriteEndDocument()
     }
     finally { $writer.Dispose() }
-    & $Wix build installer/Package.wxs (Join-Path $artifactsPath 'PublishedFiles.wxs') -arch x64 -d "RepoRoot=$repoRoot" -o (Join-Path $artifactsPath 'System69-0.1.0-win-x64.msi')
+    & $Wix build installer/Package.wxs (Join-Path $artifactsPath 'PublishedFiles.wxs') -arch x64 -d "RepoRoot=$repoRoot" -o (Join-Path $artifactsPath 'System69-0.1.1-win-x64.msi')
     Assert-Exit 'MSI packaging'
-    $zipPath = Join-Path $artifactsPath 'System69-0.1.0-win-x64-portable.zip'
+    $zipPath = Join-Path $artifactsPath 'System69-0.1.1-win-x64-portable.zip'
     Compress-Archive -Path (Join-Path $publishPath '*') -DestinationPath $zipPath -Force
-    Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $artifactsPath 'System69-0.1.0-win-x64.msi'), $zipPath |
+    Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $artifactsPath 'System69-0.1.1-win-x64.msi'), $zipPath |
         Select-Object Algorithm, Hash, @{Name='File';Expression={[System.IO.Path]::GetFileName($_.Path)}} |
         ConvertTo-Json | Set-Content -LiteralPath (Join-Path $artifactsPath 'checksums.json') -Encoding utf8
     Write-Host "Release ready: $artifactsPath"

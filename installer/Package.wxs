@@ -1,5 +1,5 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
-  <Package Name="System69 Uninstaller" Manufacturer="System69" Version="0.1.0" UpgradeCode="A52BF204-88A1-49A8-97D5-A92592BE9E7D" Scope="perUser" Compressed="yes">
+  <Package Name="System69 Uninstaller" Manufacturer="System69" Version="0.1.1" UpgradeCode="A52BF204-88A1-49A8-97D5-A92592BE9E7D" Scope="perUser" Compressed="yes">
     <SetProperty Id="ARPINSTALLLOCATION" Value="[INSTALLFOLDER]" After="CostFinalize" Sequence="execute" />
     <MajorUpgrade DowngradeErrorMessage="A newer version of System69 is already installed." />
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />

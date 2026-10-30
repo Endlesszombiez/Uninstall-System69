@@ -6,6 +6,7 @@ using System.Security.Principal;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Input;
 using System69.App.Services;
 using System69.Core;
 
@@ -13,10 +14,14 @@ namespace System69.App;
 
 public partial class MainWindow : Window
 {
+    public static RoutedUICommand HideAppCommand { get; } = new("Hide application", "HideApp", typeof(MainWindow));
+    public static RoutedUICommand UnhideAppCommand { get; } = new("Unhide application", "UnhideApp", typeof(MainWindow));
     private readonly InventoryService inventory = new();
     private readonly CleanupService cleanup = new();
     private readonly ObservableCollection<AppRow> apps = [];
     private readonly ObservableCollection<QueueRow> queue = [];
+    private readonly HiddenApplications hiddenApps;
+    private readonly string hiddenPreferencesPath;
     private ICollectionView? view;
     private bool scanning;
     private bool running;
@@ -26,6 +31,11 @@ public partial class MainWindow : Window
 
     public MainWindow()
     {
+        hiddenPreferencesPath = Environment.GetCommandLineArgs().Contains("--smoke-test")
+            ? Path.Combine(Path.GetTempPath(), "system69-hidden-smoke-" + Guid.NewGuid().ToString("N") + ".json")
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "System69", "hidden-apps.json");
+        hiddenApps = new(hiddenPreferencesPath);
+        hiddenApps.Load();
         InitializeComponent();
         view = CollectionViewSource.GetDefaultView(apps);
         view.Filter = MatchesFilter;
@@ -47,6 +57,7 @@ public partial class MainWindow : Window
                 File.WriteAllText("artifacts/smoke-error.txt", ex.ToString());
                 Environment.ExitCode = 1;
             }
+            finally { if (File.Exists(hiddenPreferencesPath)) File.Delete(hiddenPreferencesPath); }
             Close();
         }
     }
@@ -66,14 +77,14 @@ public partial class MainWindow : Window
             apps.Clear();
             foreach (var app in found)
             {
-                var row = new AppRow(app);
+                var row = new AppRow(app) { Hidden = hiddenApps.Contains(app) };
                 row.PropertyChanged += RowChanged;
                 apps.Add(row);
             }
             inventoryStale = false;
             AppCount.Text = apps.Count.ToString("N0");
             TotalSize.Text = $"{apps.Sum(x => x.App.SizeBytes) / (double)(1L << 30):0.0} GB";
-            NoticesText.Text = string.Join("  •  ", inventory.Notices);
+            NoticesText.Text = string.Join("  •  ", inventory.Notices.Concat(hiddenApps.LoadError is { } error ? [error] : Array.Empty<string>()));
             StatusText.Text = $"Last scanned {DateTime.Now:t}. Entries from different sources may describe the same app. Sizes are reported by Windows.";
             ApplyFilter();
         }
@@ -91,7 +102,7 @@ public partial class MainWindow : Window
 
     private bool MatchesFilter(object value)
     {
-        if (value is not AppRow row) return false;
+        if (value is not AppRow row || row.Hidden && ShowHidden.IsChecked != true) return false;
         var text = SearchBox.Text.Trim();
         var matchesText = text.Length == 0 || row.Name.Contains(text, StringComparison.CurrentCultureIgnoreCase) || row.Publisher.Contains(text, StringComparison.CurrentCultureIgnoreCase) || row.App.Id.Contains(text, StringComparison.OrdinalIgnoreCase);
         var source = SourceFilter.SelectedIndex;
@@ -104,17 +115,60 @@ public partial class MainWindow : Window
     {
         if (view is null) return;
         view.Refresh();
+        AppCount.Text = apps.Count(x => !x.Hidden || ShowHidden.IsChecked == true).ToString("N0");
+        TotalSize.Text = $"{apps.Where(x => !x.Hidden || ShowHidden.IsChecked == true).Sum(x => x.App.SizeBytes) / (double)(1L << 30):0.0} GB";
         EmptyText.Visibility = view.IsEmpty ? Visibility.Visible : Visibility.Collapsed;
-        EmptyText.Text = apps.Count == 0 ? "No removable apps found. Refresh to try again." : "No apps match your search.";
+        EmptyText.Text = apps.Count == 0 ? "No removable apps found. Refresh to try again."
+            : ShowHidden.IsChecked != true && apps.All(x => x.Hidden) ? "All apps are hidden. Enable Show hidden apps to restore them."
+            : "No apps match your search.";
         SelectAllBox.IsChecked = false;
+    }
+
+    private void HiddenFilter_Changed(object sender, RoutedEventArgs e)
+    {
+        if (view is null) return;
+        if (ShowHidden.IsChecked != true)
+            foreach (var row in apps.Where(x => x.Hidden)) row.Selected = false;
+        AppsGrid.UnselectAll();
+        ApplyFilter();
+        UpdateSelection();
+    }
+    private void HideSelected_Click(object sender, RoutedEventArgs e) => SetHidden(apps.Where(x => x.Selected && !x.Hidden).ToList(), true);
+    private void UnhideSelected_Click(object sender, RoutedEventArgs e) => SetHidden(apps.Where(x => x.Selected && x.Hidden).ToList(), false);
+    private void HideApp_Executed(object sender, ExecutedRoutedEventArgs e) { if (e.Parameter is AppRow row) SetHidden([row], true); }
+    private void UnhideApp_Executed(object sender, ExecutedRoutedEventArgs e) { if (e.Parameter is AppRow row) SetHidden([row], false); }
+
+    private void SetHidden(IReadOnlyList<AppRow> rows, bool hide)
+    {
+        if (running || scanning || rows.Count == 0) return;
+        try
+        {
+            // Commit preferences before changing the interface, so failures never silently lose a hide.
+            hiddenApps.Set(rows.Select(x => x.App), hide);
+            foreach (var row in rows) { row.Hidden = hide; row.Selected = false; }
+            var removed = 0;
+            if (hide)
+                foreach (var queued in queue.Where(x => x.Status == "Ready" && hiddenApps.Contains(x.App)).ToList()) { queue.Remove(queued); removed++; }
+            AppsGrid.UnselectAll();
+            ApplyFilter();
+            UpdateSelection();
+            UpdateQueue();
+            StatusText.Text = hide
+                ? $"Hidden {rows.Count} app(s). Use Show hidden apps to unhide them." + (removed > 0 ? $" Removed {removed} pending queue entry/entries." : "")
+                : $"Unhidden {rows.Count} app(s).";
+        }
+        catch (Exception ex) { StatusText.Text = "Could not save hidden apps: " + ex.Message; }
     }
 
     private void RowChanged(object? sender, PropertyChangedEventArgs e) { if (e.PropertyName == nameof(AppRow.Selected)) UpdateSelection(); }
     private void UpdateSelection()
     {
         var selected = apps.Count(x => x.Selected);
+        var visibleSelected = apps.Count(x => x.Selected && !x.Hidden);
+        HideButton.IsEnabled = visibleSelected > 0 && !running && !scanning;
+        UnhideButton.IsEnabled = apps.Any(x => x.Selected && x.Hidden) && !running && !scanning;
         SelectionLabel.Text = $"{selected} app{(selected == 1 ? "" : "s")} selected";
-        AddButton.IsEnabled = selected > 0 && !running && !scanning;
+        AddButton.IsEnabled = visibleSelected > 0 && !running && !scanning;
     }
     private void SelectAll_Click(object sender, RoutedEventArgs e)
     {
@@ -125,7 +179,7 @@ public partial class MainWindow : Window
     private void Add_Click(object sender, RoutedEventArgs e)
     {
         var skipped = 0;
-        foreach (var row in apps.Where(x => x.Selected))
+        foreach (var row in apps.Where(x => x.Selected && !x.Hidden))
         {
             if (row.App.Protected || queue.Any(x => x.App.Source == row.App.Source && x.App.Id == row.App.Id)) { skipped++; continue; }
             queue.Add(new(row.App));
@@ -257,7 +311,8 @@ public partial class MainWindow : Window
         StartButton.IsEnabled = !busy;
         StopButton.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
         StopButton.IsEnabled = true;
-        AddButton.IsEnabled = !busy && apps.Any(x => x.Selected);
+        UpdateSelection();
+        ShowHidden.IsEnabled = !busy;
     }
     private void Logs_Click(object sender, RoutedEventArgs e)
     {

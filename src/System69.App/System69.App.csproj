@@ -5,7 +5,7 @@
     <UseWPF>true</UseWPF>
     <AssemblyName>System69</AssemblyName>
     <Product>System69 Uninstaller</Product>
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets/System69.ico</ApplicationIcon>
   </PropertyGroup>

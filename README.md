@@ -4,7 +4,7 @@ A native Windows desktop uninstaller with a light theme, searchable inventory, c
 
 ## Run
 
-Windows 10/11 x64. Install `artifacts/System69-0.1.0-win-x64.msi`, or extract the portable ZIP and run `System69.exe`. The self-contained release includes .NET. The MSI installs for the current user under `%LOCALAPPDATA%\Programs\System69` and adds a Start menu shortcut. Release binaries are unsigned.
+Windows 10/11 x64. Install `artifacts/System69-0.1.1-win-x64.msi`, or extract the portable ZIP and run `System69.exe`. The self-contained release includes .NET. The MSI installs for the current user under `%LOCALAPPDATA%\Programs\System69` and adds a Start menu shortcut. Release binaries are unsigned.
 
 1. Refresh the inventory and search or filter by source.
 2. Check the apps to remove, then select **Add to uninstall queue**.
@@ -13,6 +13,12 @@ Windows 10/11 x64. Install `artifacts/System69-0.1.0-win-x64.msi`, or extract th
 5. Review and acknowledge the batch, then uninstall. **Stop after current** stops before the next app without interrupting an uninstaller.
 
 Use **Run as administrator** before building the queue if machine-wide uninstallers require elevation. This requests Windows UAC and restarts the app. Refresh after a batch before starting another. Failed and skipped entries can be removed and re-added after addressing their cause. Logs are stored in `%LOCALAPPDATA%\System69\Logs` as daily JSONL files.
+
+## Hide applications
+
+Right-click an app and choose **Hide application**, or check multiple entries and click **Hide selected**. Hidden entries stay hidden after refreshes and app restarts. Enable **Show hidden apps** to find them, then right-click **Unhide application** or check entries and click **Unhide selected**. Hidden entries are labeled and cannot be added to the uninstall queue. Hiding also removes their pending queue entries without uninstalling anything.
+
+Preferences are stored per Windows user in `%LOCALAPPDATA%\System69\hidden-apps.json`. Hiding applies to the selected source entry; duplicate entries from another package manager can be hidden separately.
 
 ## Sources
 
